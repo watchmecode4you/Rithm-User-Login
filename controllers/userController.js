@@ -173,7 +173,7 @@ exports.updateUser = async function (req, res, next) {
     try {
         if (isAdmin === false && isLoggedIn === false) {
             res.json({
-                message: `Unauthorized action`
+                message: `Cannot Update. Unauthorized action`
             })
         } else if (isAdmin === true || isLoggedIn === true) {
             let {
@@ -197,6 +197,39 @@ exports.updateUser = async function (req, res, next) {
             // but in a real application you have to use this step and update the Json web token used if the user himself is updating his own password
             
             res.status(200).json(updateInfo.rows[0])
+
+        } else {
+            next({
+                error: `Information is not available. 
+                Kindly login and try again`
+            })
+        }
+    } catch (e) {
+        next(e)
+    }
+}
+
+exports.deleteUser = async function (req, res, next) {
+    let userId = req.params.id
+    let isAdmin = isVisitorAdmin(req.headers.authorization.split(" ")[1])
+    let isLoggedIn = isVisitorLoggedIn(req.headers.authorization.split(" ")[1], userId)
+    try {
+        if (isAdmin === false && isLoggedIn === false) {
+            res.json({
+                message: `Cannot delete. Unauthorized action`
+            })
+        } else if (isAdmin === true || isLoggedIn === true) {
+            
+            //delete the user from the database 
+            const delete_user_query = `DELETE FROM users WHERE id = $1 RETURNING *`
+            const deleteUser = await db.query(delete_user_query, [userId])
+            if (deleteUser.rows.length <= 0) res.status(404).json(`User was not successfully deleted. Please contact your system administrator`)
+
+            // we can login the user whenever he changes his password if the user was the one updating his own passowrd
+            //But since this is an api example no need to go through this step
+            // but in a real application you have to use this step and update the Json web token used if the user himself is updating his own password
+            
+            res.status(204).json()
 
         } else {
             next({
