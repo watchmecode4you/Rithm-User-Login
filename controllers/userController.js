@@ -2,16 +2,19 @@ const db = require("../db/db")
 const bcrypt = require("bcrypt")
 const env = require("dotenv").config()
 const jwt = require("jsonwebtoken")
+const {
+    user
+} = require("../db/db")
 
 function isVisitorAdmin(authHeaderValue) {
     let token = jwt.verify(authHeaderValue, process.env.JWT)
     return token.isAdmin
 }
 
-function isVisitorLoggedIn(authHeaderValue, userId){
+function isVisitorLoggedIn(authHeaderValue, userId) {
     let token = jwt.verify(authHeaderValue, process.env.JWT)
     console.log(token.id, userId)
-    if(token.id != userId){
+    if (token.id != userId) {
         return false
     }
     return true
@@ -51,6 +54,9 @@ exports.loginUser = async function (req, res, next) {
             })
         }
 
+        //Creating the token that will be inserted in the header with an expiration date 
+        // if i'm using postman for testing then i can assign the token value in the Authorization header key 
+        //You can save necessary information inside the token to be retrieved in the future upon usage.
         const token = jwt.sign({
                 id: id,
                 username: username,
@@ -60,10 +66,7 @@ exports.loginUser = async function (req, res, next) {
                 expiresIn: 60 * 60
             }
         )
-        // res.locals.user = {
-        //     username: username,
-        //     isAdmin: isadmin
-        // }
+ 
         res.status(200).json({
             username: username,
             token: token,
@@ -120,26 +123,23 @@ exports.showUser = async function (req, res, next) {
     let userId = req.params.id
     let isAdmin = isVisitorAdmin(req.headers.authorization.split(" ")[1])
     let isLoggedIn = isVisitorLoggedIn(req.headers.authorization.split(" ")[1], userId)
-    try{
+    try {
         if (isAdmin === false && isLoggedIn === false) {
             res.json({
                 message: `Unauthorized action`
             })
-        } 
-        else if (isAdmin === true || isLoggedIn == true) {
+        } else if (isAdmin === true || isLoggedIn == true) {
             const query = `SELECT * FROM USERS where id = $1`
             const userInfo = await db.query(query, [userId])
-            if(userInfo.rows.length <= 0 ) res.status(200).json(`User not found`)
+            if (userInfo.rows.length <= 0) res.status(200).json(`User not found`)
             else res.status(200).json(userInfo.rows[0])
-        }
-        else {
+        } else {
             next({
                 error: `Information is not available. 
                 Kindly login and try again`
             })
         }
-    }
-    catch(e){
+    } catch (e) {
         next(e)
     }
 }
@@ -154,7 +154,7 @@ exports.showAllUsers = async function (req, res, next) {
         } else if (isAdmin === true) {
             const query = `SELECT * FROM USERS`
             const userList = await db.query(query)
-            if(userList.rows.length <= 0 ) res.status(200).json(`No users to be found`)
+            if (userList.rows.length <= 0) res.status(200).json(`No users to be found`)
             else res.status(200).json(userList.rows)
         } else {
             next({
@@ -166,6 +166,45 @@ exports.showAllUsers = async function (req, res, next) {
     }
 }
 
-exports.updateUser = async function (req, res, next){
-    
+exports.updateUser = async function (req, res, next) {
+    let userId = req.params.id
+    let isAdmin = isVisitorAdmin(req.headers.authorization.split(" ")[1])
+    let isLoggedIn = isVisitorLoggedIn(req.headers.authorization.split(" ")[1], userId)
+    try {
+        if (isAdmin === false && isLoggedIn === false) {
+            res.json({
+                message: `Unauthorized action`
+            })
+        } else if (isAdmin === true || isLoggedIn === true) {
+            let {
+                password
+            } = req.body
+
+            //check if the user already exist in the database
+            const check_user_query = `Select id, username FROM users WHERE id = $1`
+            const userInfo = await db.query(check_user_query, [userId])
+            if (userInfo.rows.length <= 0) res.status(200).json(`Cannot update information. User not found`)
+
+            newPassword = await bcrypt.hash(password, 10)
+
+            //update the user inforamtion 
+            const update_user_query = `UPDATE users SET password = $1 where id = $2 RETURNING *`
+            const updateInfo = await db.query(update_user_query, [newPassword ,userId])
+            if (updateInfo.rows.length <= 0) res.status(404).json(`User was not successfully updated. Please contact your system administrator`)
+
+            // we can login the user whenever he changes his password if the user was the one updating his own passowrd
+            //But since this is an api example no need to go through this step
+            // but in a real application you have to use this step and update the Json web token used if the user himself is updating his own password
+            
+            res.status(200).json(updateInfo.rows[0])
+
+        } else {
+            next({
+                error: `Information is not available. 
+                Kindly login and try again`
+            })
+        }
+    } catch (e) {
+        next(e)
+    }
 }
