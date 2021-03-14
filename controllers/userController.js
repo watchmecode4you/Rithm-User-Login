@@ -8,11 +8,11 @@ function isVisitorAdmin(authHeaderValue) {
     return token.isAdmin
 }
 
-function validate(body){
-    return new Promise((resolve, reject)=>{
-        if(!body.hasOwnProperty(username) || body.username == "") reject(false)
-        if(!body.hasOwnProperty(password) || body.password == "") reject(false)
-        if(!body.hasOwnProperty(isAdmin) || body.isAdmin == "") reject(false)
+function validate(body) {
+    return new Promise((resolve, reject) => {
+        if (!body.hasOwnProperty(username) || body.username == "") reject(false)
+        if (!body.hasOwnProperty(password) || body.password == "") reject(false)
+        if (!body.hasOwnProperty(isAdmin) || body.isAdmin == "") reject(false)
         else resolve(true)
     })
 }
@@ -107,7 +107,25 @@ exports.createUser = async function (req, res, next) {
     }
 }
 
-exports.showUser = function (req, res, next) {
+exports.showUser = async function (req, res, next) {
+    let userId = req.params.id
+
+    if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === false) {
+        res.json({
+            message: `Unauthorized action`
+        })
+    } 
+    else if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === true) {
+        const query = `SELECT * FROM USERS where id = $1`
+        const userInfo = await db.query(query, [userId])
+        if(userInfo.rows.length <= 0 ) res.status(200).json(`User not found`)
+        else res.status(200).json(userInfo.rows[0])
+    }
+    else {
+        next({
+            error: isVisitorAdmin(req.headers.authorization.split(" ")[1])
+        })
+    }
 
 }
 
@@ -117,15 +135,14 @@ exports.showAllUsers = async function (req, res, next) {
             res.json({
                 message: `Unauthorized action`
             })
-        }
-        else if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === true) {
+        } else if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === true) {
             const query = `SELECT * FROM USERS`
             const userList = await db.query(query)
             res.status(200).json(userList.rows)
-        }
-
-        else{
-            next({error: isVisitorAdmin(req.headers.authorization.split(" ")[1])})
+        } else {
+            next({
+                error: isVisitorAdmin(req.headers.authorization.split(" ")[1])
+            })
         }
     } catch (e) {
         next(e)
