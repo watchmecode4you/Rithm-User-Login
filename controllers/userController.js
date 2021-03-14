@@ -8,6 +8,15 @@ function isVisitorAdmin(authHeaderValue) {
     return token.isAdmin
 }
 
+function isVisitorLoggedIn(authHeaderValue, userId){
+    let token = jwt.verify(authHeaderValue, process.env.JWT)
+    console.log(token.id, userId)
+    if(token.id != userId){
+        return false
+    }
+    return true
+}
+
 function validate(body) {
     return new Promise((resolve, reject) => {
         if (!body.hasOwnProperty(username) || body.username == "") reject(false)
@@ -109,42 +118,54 @@ exports.createUser = async function (req, res, next) {
 
 exports.showUser = async function (req, res, next) {
     let userId = req.params.id
-
-    if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === false) {
-        res.json({
-            message: `Unauthorized action`
-        })
-    } 
-    else if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === true) {
-        const query = `SELECT * FROM USERS where id = $1`
-        const userInfo = await db.query(query, [userId])
-        if(userInfo.rows.length <= 0 ) res.status(200).json(`User not found`)
-        else res.status(200).json(userInfo.rows[0])
-    }
-    else {
-        next({
-            error: isVisitorAdmin(req.headers.authorization.split(" ")[1])
-        })
-    }
-
-}
-
-exports.showAllUsers = async function (req, res, next) {
-    try {
-        if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === false) {
+    let isAdmin = isVisitorAdmin(req.headers.authorization.split(" ")[1])
+    let isLoggedIn = isVisitorLoggedIn(req.headers.authorization.split(" ")[1], userId)
+    try{
+        if (isAdmin === false && isLoggedIn === false) {
             res.json({
                 message: `Unauthorized action`
             })
-        } else if (isVisitorAdmin(req.headers.authorization.split(" ")[1]) === true) {
+        } 
+        else if (isAdmin === true || isLoggedIn == true) {
+            const query = `SELECT * FROM USERS where id = $1`
+            const userInfo = await db.query(query, [userId])
+            if(userInfo.rows.length <= 0 ) res.status(200).json(`User not found`)
+            else res.status(200).json(userInfo.rows[0])
+        }
+        else {
+            next({
+                error: `Information is not available. 
+                Kindly login and try again`
+            })
+        }
+    }
+    catch(e){
+        next(e)
+    }
+}
+
+exports.showAllUsers = async function (req, res, next) {
+    let isAdmin = isVisitorAdmin(req.headers.authorization.split(" ")[1])
+    try {
+        if (isAdmin === false) {
+            res.json({
+                message: `Unauthorized action`
+            })
+        } else if (isAdmin === true) {
             const query = `SELECT * FROM USERS`
             const userList = await db.query(query)
-            res.status(200).json(userList.rows)
+            if(userList.rows.length <= 0 ) res.status(200).json(`No users to be found`)
+            else res.status(200).json(userList.rows)
         } else {
             next({
-                error: isVisitorAdmin(req.headers.authorization.split(" ")[1])
+                error: isAdmin
             })
         }
     } catch (e) {
         next(e)
     }
+}
+
+exports.updateUser = async function (req, res, next){
+    
 }
