@@ -229,7 +229,7 @@ exports.deleteUser = async function (req, res, next) {
             //But since this is an api example no need to go through this step
             // but in a real application you have to use this step and update the Json web token used if the user himself is updating his own password
             
-            res.status(204).json()
+            res.status(204).json(`Deleted`)
 
         } else {
             next({
